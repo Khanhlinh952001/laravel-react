@@ -491,6 +491,104 @@ php artisan storage:link
 ],
 ```
 
+## Thiết kế cơ sở dữ liệu khi nhiều ứng dụng dùng chung
+
+### Chiến lược đặt tên bảng khi nhiều ứng dụng dùng chung database
+
+Khi nhiều ứng dụng sử dụng chung một cơ sở dữ liệu, việc đặt tên bảng cần được cân nhắc kỹ lưỡng để tránh xung đột và dễ quản lý. Dưới đây là các chiến lược bạn có thể áp dụng:
+
+#### 1. Sử dụng tiền tố (prefix) cho tên bảng
+
+Đây là phương pháp được khuyến nghị khi nhiều ứng dụng dùng chung database:
+
+```php
+// config/database.php
+'connections' => [
+    'mysql' => [
+        // ...
+        'prefix' => 'app1_',
+        // ...
+    ],
+],
+```
+
+Với cấu hình này, tất cả các bảng sẽ được tạo với tiền tố "app1_", ví dụ: "app1_users", "app1_memos", v.v.
+
+#### 2. Sử dụng schema riêng biệt (đối với PostgreSQL, SQL Server)
+
+Nếu bạn sử dụng PostgreSQL hoặc SQL Server, bạn có thể tạo schema riêng cho mỗi ứng dụng:
+
+```php
+// config/database.php
+'connections' => [
+    'pgsql' => [
+        // ...
+        'schema' => 'app1',
+        'sslmode' => 'prefer',
+    ],
+],
+```
+
+#### 3. Đổi tên bảng users trong migration
+
+Nếu bạn chỉ muốn đổi tên bảng users mà không sử dụng prefix cho tất cả các bảng:
+
+```php
+// app/Models/User.php
+class User extends Authenticatable
+{
+    // ...
+    protected $table = 'app1_users';
+    // ...
+}
+```
+
+Và trong migration:
+
+```php
+// database/migrations/xxxx_create_users_table.php
+public function up()
+{
+    Schema::create('app1_users', function (Blueprint $table) {
+        // ...
+    });
+}
+
+public function down()
+{
+    Schema::dropIfExists('app1_users');
+}
+```
+
+### Cập nhật các liên kết và quan hệ
+
+Khi bạn đổi tên bảng users, bạn cần cập nhật tất cả các liên kết và quan hệ trong ứng dụng:
+
+```php
+// Trong migration tạo bảng memos
+public function up()
+{
+    Schema::create('app1_memos', function (Blueprint $table) {
+        $table->id();
+        $table->foreignId('user_id')->constrained('app1_users')->onDelete('cascade');
+        // ...
+    });
+}
+```
+
+```php
+// app/Models/Memo.php
+class Memo extends Model
+{
+    protected $table = 'app1_memos';
+    
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+}
+```
+
 ## Tài liệu tham khảo
 
 - [Laravel Documentation](https://laravel.com/docs)
